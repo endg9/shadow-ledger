@@ -1,46 +1,56 @@
-// Shadow Ledger — dossier entrypoint.
-//
-// Run with: MAKEFUN_OUTPUT_DIR=out node main.ts
-//
-// Copies the playable game and its screenshots into the output directory,
-// then asks the make.fun kit library to build the dossier (dossier.json)
-// from exactly what was copied, so the dossier always matches the entry.
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+// Shadow Ledger — entrypoint.
+// Copies the playable game and its screenshots into the output folder,
+// then writes the entry dossier there. Run with Node 22, no flags:
+//   MAKEFUN_OUTPUT_DIR=/output node main.ts
+// With the variable unset, the dossier lands in ./out next to this file.
+
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { buildDossier } from './vendor/makefun-game.ts';
 
-// The repository root is the directory holding this file.
-const repoRoot = dirname(fileURLToPath(import.meta.url));
+// Where this file lives on disk. Every input path hangs off here, so the
+// program works no matter which directory it is launched from.
+const here = dirname(fileURLToPath(import.meta.url));
 
-// Where the entry goes: the environment's choice, or ./out beside the repo.
-const outputDir = resolve(repoRoot, process.env.MAKEFUN_OUTPUT_DIR ?? 'out');
+// The grader hands us a fresh, pre-made output folder it owns; fall back
+// to a local ./out when nothing was handed over.
+const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? join(here, 'out');
 
-// The caps the stealth bounty scores against: text budget, at most four
-// screenshots of at most 256 KiB each, and the game-tree limits.
-const DOSSIER_CAPS = {
+// Empty the destination without ever deleting the destination itself.
+// Deleting the folder would need write permission on its parent, which
+// the runner may not have — so only the things inside it go away.
+// Staged copies keep the read-only modes of the repo they came from, so
+// each entry is made writable first, or a second run could not clear it.
+const makeWritable = (path: string): void => {
+  const info = lstatSync(path);
+  chmodSync(path, info.isDirectory() ? 0o755 : 0o644);
+  if (info.isDirectory()) {
+    for (const entry of readdirSync(path)) makeWritable(join(path, entry));
+  }
+};
+if (existsSync(outDir)) {
+  for (const entry of readdirSync(outDir)) {
+    const target = join(outDir, entry);
+    makeWritable(target);
+    rmSync(target, { force: true, recursive: true });
+  }
+}
+mkdirSync(outDir, { recursive: true });
+
+// Stage the game and its screenshots beside the dossier they describe.
+cpSync(join(here, 'game'), join(outDir, 'game'), { recursive: true });
+cpSync(join(here, 'screenshots'), join(outDir, 'screenshots'), { recursive: true });
+
+// The dossier is built from what was just staged, with the bounty gate's
+// own limits: at most 163840 bytes of source text, at most 4 screenshots
+// of 256 KiB each, at most 993 game entries totalling 48 MiB.
+const dossier = buildDossier(outDir, {
   text_max_bytes: 163840,
   screenshots: { max: 4, max_bytes: 262144 },
   game_max_files: 993,
   game_max_bytes: 50331648,
-} as const;
+});
 
-function copyTree(source: string, target: string): void {
-  if (!existsSync(source)) {
-    throw new Error(`Shadow Ledger: missing ${source} — cannot build an entry without it`);
-  }
-  mkdirSync(dirname(target), { recursive: true });
-  cpSync(source, target, { recursive: true });
-}
-
-// Start from a clean output directory so a stale game/ or screenshots/
-// from an earlier run can never leak into this dossier.
-rmSync(outputDir, { recursive: true, force: true });
-mkdirSync(outputDir, { recursive: true });
-
-copyTree(join(repoRoot, 'game'), join(outputDir, 'game'));
-copyTree(join(repoRoot, 'screenshots'), join(outputDir, 'screenshots'));
-
-const dossier = buildDossier(outputDir, DOSSIER_CAPS);
-writeFileSync(join(outputDir, 'dossier.json'), dossier);
-console.log(`Shadow Ledger: dossier written to ${join(outputDir, 'dossier.json')} (${dossier.length} bytes)`);
+writeFileSync(join(outDir, 'dossier.json'), dossier);

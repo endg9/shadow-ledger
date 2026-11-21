@@ -120,3 +120,34 @@ not committed. Coordinator bundles and resubmits round 2.
 **Repo:** https://github.com/endg9/shadow-ledger
 **Game commit:** b329326601bf4b4096f6346ab104fcafc5a9ede6
 **HEAD sha:** cf70100406811de68a84423891997be7a29a1923 (this log's commit; pushed to master)
+
+## 2026-11-22 ~01:51 WIB — Round 3 fix (run_completes)
+
+Round 2 was submitted and REJECTED on one check only: `run_completes` —
+the grader runs `node /bot/main.ts` with the repo read-only, as user
+65534, cwd NOT the repo, `MAKEFUN_OUTPUT_DIR=/output`, and the program
+exited 1. Cause: `main.ts` removed the output directory itself (`rmSync`
+on `MAKEFUN_OUTPUT_DIR`) before recreating it, which fails with EACCES
+because the runner cannot write the output directory's parent. Everything
+else passed, including `thinking_reproduces` (main.ts fully authored).
+
+Fix, done in this session (inside the window, closes 22 Nov 12:59 WIB):
+`main.ts` rewritten FRESH from the functional spec only — the old file
+was deleted unread, the previous build was never opened. The new entry
+never removes the output directory itself: it clears only the entries
+inside it (making each writable first, since staged copies keep the
+repo's read-only modes, so a second run can clear them too), creates the
+directory with `mkdir -p` when missing, resolves all inputs relative to
+the script's own directory (never `process.cwd()`), then copies `game/`
++ `screenshots/` and writes `dossier.json` via `buildDossier`. Only
+`main.ts` changed; `serve.ts`, `shots.json`, `game/` untouched.
+
+Grader-like sandbox verification (fresh copy of the repo, read-only, run
+as user 65534 from cwd=/ with `MAKEFUN_OUTPUT_DIR` set): exit 0 on a
+fresh empty output dir, exit 0 again on re-run (read-only contents
+cleared), exit 0 with a missing output dir (created). Output holds
+`dossier.json` (268,262 B, same bytes as round 2) + `game/` +
+`screenshots/` (4 images). Local check `MAKEFUN_OUTPUT_DIR=out node
+main.ts` exit 0; `node verify-stealth.mjs` still **135/135 pass**,
+autopilot campaign unchanged (score 16255, 149.7 s, 0 alarms). `out/`
+not committed. Coordinator bundles and resubmits round 3.
