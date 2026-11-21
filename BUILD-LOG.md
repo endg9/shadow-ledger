@@ -93,4 +93,4 @@ makefun-game.ts`, `README.md`, `LICENSE`, `kit.json`, `verify-stealth.mjs`
 
 **Repo:** https://github.com/endg9/shadow-ledger
 **Game commit:** b329326601bf4b4096f6346ab104fcafc5a9ede6
-**HEAD sha:** (pushed HEAD — see the coordinator's report)
+**HEAD sha:** cf70100406811de68a84423891997be7a29a1923 (this log's commit; pushed to master)
