@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shadow Ledger — a stealth game</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #07080d; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #cfd3e0;
+  }
+  canvas {
+    background: #10121a;
+    border: 1px solid #2a2f42;
+    max-width: 96vw;
+    max-height: 86vh;
+  }
+  p { font-size: 13px; margin: 10px 0 0; text-align: center; }
+  p b { color: #e8eaf2; }
+</style>
+</head>
+<body>
+<canvas id="game" width="960" height="600"></canvas>
+<p><b>Shadow Ledger</b> — WASD move · Shift run · C sneak · E noisemaker · P pause · M mute</p>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
