@@ -1,20 +1,23 @@
-// A tiny static server for game/ (Node 22, standard library only), so the entry
-// can be played locally without a build step: `node serve.ts` serves game/ on
-// http://localhost:8080. It sends the MIME types a browser game needs, refuses
-// any path outside game/, and otherwise does nothing clever: this is a
-// development convenience, not a web server for the internet.
-import { createReadStream, statSync } from 'node:fs';
+// Shadow Ledger — tiny dev server.
+//
+// Run with: node serve.ts
+// Then open http://localhost:8080 to play the game.
+//
+// Serves only the files under game/ (index.html at /), with no
+// dependencies beyond Node's own http module. Anything outside game/
+// is refused, so a crafted URL can never read another file on disk.
 import { createServer } from 'node:http';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(fileURLToPath(new URL('./game', import.meta.url)));
-const args = process.argv.slice(2);
-const portIndex = args.indexOf('--port');
-const requested = portIndex === -1 ? 8080 : Number(args[portIndex + 1]);
-const port = Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : 8080;
+const PORT = 8080;
+const HOST = '127.0.0.1';
 
-const MIME = {
+// The directory served: game/ beside this file.
+const gameDir = resolve(fileURLToPath(new URL('./game', import.meta.url)));
+
+const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
@@ -23,51 +26,33 @@ const MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.woff2': 'font/woff2',
-  '.glb': 'model/gltf-binary',
-  '.gltf': 'model/gltf+json',
-  '.bin': 'application/octet-stream',
-  '.wasm': 'application/wasm',
   '.wav': 'audio/wav',
-  '.mp3': 'audio/mpeg',
   '.ogg': 'audio/ogg',
-  '.txt': 'text/plain; charset=utf-8',
 };
 
-createServer((request, response) => {
-  const url = new URL(request.url ?? '/', 'http://localhost');
-  let pathname;
-  try {
-    pathname = decodeURIComponent(url.pathname);
-  } catch {
-    response.writeHead(400).end('bad request');
+function safePath(urlPath: string): string | null {
+  const decoded = decodeURIComponent(urlPath.split('?')[0] ?? '/');
+  const rel = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
+  const resolved = resolve(gameDir, normalize(rel));
+  // Refuse anything that escapes game/ (e.g. /../main.ts).
+  if (resolved !== gameDir && !resolved.startsWith(`${gameDir}/`)) return null;
+  return resolved;
+}
+
+const server = createServer((req, res) => {
+  const file = safePath(req.url ?? '/');
+  if (file === null || !existsSync(file) || !statSync(file).isFile()) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('404 — not part of the game\n');
     return;
   }
-  if (pathname.endsWith('/')) pathname += 'index.html';
-  const file = resolve(join(root, normalize(pathname)));
-  if (file !== root && !file.startsWith(root + sep)) {
-    response.writeHead(403).end('forbidden');
-    return;
-  }
-  let size;
-  try {
-    const stats = statSync(file);
-    if (!stats.isFile()) throw new Error('not a file');
-    size = stats.size;
-  } catch {
-    response.writeHead(404).end('not found');
-    return;
-  }
-  response.writeHead(200, {
-    'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
-    'content-length': size,
-    'cache-control': 'no-store',
+  res.writeHead(200, {
+    'content-type': MIME_TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream',
   });
-  createReadStream(file).pipe(response);
-}).listen(port, '127.0.0.1', () => {
-  console.log(`game/ is on http://localhost:${port}`);
+  createReadStream(file).pipe(res);
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`Shadow Ledger: playing at http://${HOST}:${PORT}/`);
 });

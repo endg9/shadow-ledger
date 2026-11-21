@@ -91,6 +91,32 @@ makefun-game.ts`, `README.md`, `LICENSE`, `kit.json`, `verify-stealth.mjs`
 - NOT SUBMITTED — the coordinator submits after this build. No accounts
   created, nothing paid.
 
+## 2026-11-22 ~02:45 WIB — Round 2 fix (thinking_reproduces)
+
+Round 1 was submitted and REJECTED on one check only:
+`thinking_reproduces` — the entrypoint `main.ts` had no authored line,
+because `main.ts`, `serve.ts` and `shots.json` had been copied into the
+repo with `cp` from the previous build. Everything else passed (repo
+public/owner/badges/license, transcripts, run record, pricing).
+
+Fix, done in this session (inside the window, closes 22 Nov 12:59 WIB):
+all three files were rewritten FRESH by hand from the functional spec
+only — the old files were deleted unread, the previous build was never
+opened, and only `game/src/shots.js` (scene schema), `game/` and the
+vendor library's exported API (`buildDossier`) were consulted. New
+`main.ts` copies `game/` + `screenshots/` into `$MAKEFUN_OUTPUT_DIR`
+and writes `dossier.json` via `buildDossier`; new `serve.ts` is a plain
+Node http static server for `game/` on http://localhost:8080 (traversal
+refused, verified: `/` 200, `/src/main.js` 200, `/../main.ts` 404);
+new `shots.json` lists the 4 scenes (start, play, stealth, win, seed 7)
+with their screenshot files.
+
+Re-verified after the rewrite: `MAKEFUN_OUTPUT_DIR=out node main.ts`
+exit 0, `dossier.json` 268,262 B, schema `makefun/dossier/v1`, `game/` +
+`screenshots/` copied; `node verify-stealth.mjs` still **135/135 pass**,
+autopilot campaign unchanged (score 16255, 149.7 s, 0 alarms). `out/`
+not committed. Coordinator bundles and resubmits round 2.
+
 **Repo:** https://github.com/endg9/shadow-ledger
 **Game commit:** b329326601bf4b4096f6346ab104fcafc5a9ede6
 **HEAD sha:** cf70100406811de68a84423891997be7a29a1923 (this log's commit; pushed to master)
